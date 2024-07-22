@@ -1,0 +1,6 @@
+api/.env
+api/api/__pycache__
+api/jobs/__pycache__
+app/.env
+app/node_modules
+app/.next

@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "api"
+version = "0.1.0"
+description = ""
+authors = ["Skiball <divye11@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11.9"
+fastapi = "^0.111.0"
+python-dotenv = "^1.0.1"
+pydantic = "^2.8.2"
+
+[tool.poetry.scripts]
+start = "api.main:start"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
