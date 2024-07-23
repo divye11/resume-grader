@@ -15,10 +15,10 @@ interface JobDetailProps {
 
 const JobDetail: React.FC<JobDetailProps> = ({ params }) => {
   const { loading, data, error, makeRequest } = useApi<JobDetail>()
-  const { loading: loadingCandidates, data: candidatesList, error: candidateError } = useApi<CandidatesList>()
+  const { loading: loadingCandidates, data: candidatesList, error: candidateError, makeRequest: makeCandidateRequest } = useApi<CandidatesList>()
 
   useEffect(() => {
-    if (params.id && !loading) {
+    if (params.id && !loading && !data) {
       const jobConfig = {
         url: `jobs/${params.id}`,
         method: 'GET'
@@ -27,14 +27,15 @@ const JobDetail: React.FC<JobDetailProps> = ({ params }) => {
       makeRequest(jobConfig)
     }
 
-    if (data && !loadingCandidates) {
+    if (!candidatesList && !loadingCandidates) {
       const candidatesConfig = {
         url: `jobs/${params.id}/candidates`,
         method: 'GET'
       }
-      makeRequest(candidatesConfig)
+      makeCandidateRequest(candidatesConfig)
     }
-  }, [params.id, loading, makeRequest, data, loadingCandidates])
+
+  }, [params.id, loading, makeRequest, data, loadingCandidates, candidatesList, makeCandidateRequest])
 
   useEffect(() => {
     console.log('data or error', data, error)
