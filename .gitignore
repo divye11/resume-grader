@@ -4,3 +4,4 @@ api/jobs/__pycache__
 app/.env
 app/node_modules
 app/.next
+**/__pycache__
