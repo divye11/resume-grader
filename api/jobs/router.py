@@ -7,12 +7,20 @@ router = APIRouter(prefix="/jobs")
 def get_job_service() -> JobService:
     return JobService()
 
-@router.get("/", response_model=JobsList)
+@router.get("", response_model=JobsList)
 async def get_jobs(service: JobService = Depends(get_job_service)):
     jobs, status_code, error_msg = await service.get_jobs()
     if error_msg:
         raise HTTPException(status_code=status_code, detail=error_msg)
     return jobs
+
+@router.get("/sync")
+async def sync_jobs(service: JobService = Depends(get_job_service)):
+    print("sync_jobs called")  # Debugging line
+    error_msg, status_code = await service.sync_jobs()
+    if error_msg:
+        raise HTTPException(status_code=status_code, detail=error_msg)
+    return {"message": "Jobs synced successfully"}
 
 @router.get("/{job_id}", response_model=JobDetail)
 async def get_job_detail(job_id: str, service: JobService = Depends(get_job_service)):

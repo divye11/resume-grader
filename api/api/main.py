@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+import os
 
-#Routes
-from jobs.router import router as JobRoutes
 
 load_dotenv()
 
@@ -21,11 +21,20 @@ app.add_middleware(
    allow_headers=[""],
 )
 
+MONGODB_URL = os.getenv("MONGODB_URL")
+client = AsyncIOMotorClient(MONGODB_URL)
+db = client.resume_grader
+
+app.state.db = db
+
+from jobs.router import router as JobRoutes
+from candidates.router import router as CandidateRoutes
 app.include_router(JobRoutes)
+app.include_router(CandidateRoutes)
 
 @app.get("/")
 def hello_world():
-    return {"message": "Hello World"}
+    return {"message": "Resume grader is working"}
 
 def start():
     import uvicorn

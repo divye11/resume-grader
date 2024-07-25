@@ -23,10 +23,11 @@ const JobDetail: React.FC<JobDetailProps> = ({ params }) => {
         url: `jobs/${params.id}`,
         method: 'GET'
       }
-      console.log('calling again')
       makeRequest(jobConfig)
     }
+  }, [params.id, loading, makeRequest, data])
 
+  useEffect(() => {
     if (!candidatesList && !loadingCandidates) {
       const candidatesConfig = {
         url: `jobs/${params.id}/candidates`,
@@ -34,8 +35,7 @@ const JobDetail: React.FC<JobDetailProps> = ({ params }) => {
       }
       makeCandidateRequest(candidatesConfig)
     }
-
-  }, [params.id, loading, makeRequest, data, loadingCandidates, candidatesList, makeCandidateRequest])
+  }, [params.id, loadingCandidates, candidatesList, makeCandidateRequest])
 
   useEffect(() => {
     console.log('data or error', data, error)
