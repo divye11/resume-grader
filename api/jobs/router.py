@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from jobs.schemas import JobsList, JobDetail, CandidatesList
 from jobs.service import JobService
+from typing import Tuple
 
 router = APIRouter(prefix="/jobs")
 
@@ -20,6 +21,13 @@ async def sync_jobs(service: JobService = Depends(get_job_service)):
     if error_msg:
         raise HTTPException(status_code=status_code, detail=error_msg)
     return {"message": "Jobs synced successfully"}
+
+@router.get("/sync_job_desc", response_model=str)
+async def sync_job_desc(service: JobService = Depends(get_job_service)):
+    error_msg, status_code = await service.sync_job_descriptions()
+    if error_msg:
+        raise HTTPException(status_code=status_code, detail=error_msg)
+    return "Job descriptions synced successfull"
 
 @router.get("/{job_id}", response_model=JobDetail)
 async def get_job_detail(job_id: str, service: JobService = Depends(get_job_service)):

@@ -1,11 +1,11 @@
 import asyncio
-from jobs.schemas import JobsList, JobDetail, CandidatesList, Job
 import os
 import requests
 from requests.exceptions import RequestException
 from typing import Tuple, Optional
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from api.main import app
+from jobs.schemas import Job, JobDetail, JobsList, CandidatesList
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import UpdateOne
 class JobService:
    def __init__(self) -> None:
@@ -118,4 +118,46 @@ class JobService:
             error_msg = f"Error syncing jobs: {str(e)}"
             print(error_msg)
             return error_msg, 500
+
+   async def fetch_job_detail(self, shortcode: str) -> Job:
+      try:
+         if not shortcode:
+            raise ValueError("Shortcode cannot be empty")
+         
+         url = f"{self.api_url}/jobs/{shortcode}"
+         response = self.session.get(url)
+         response.raise_for_status()
+         return response.json()
       
+      except Exception as e:
+         error_msg = f"Error fetching job description: {str(e)}"
+         print(error_msg)
+         raise e
+
+   async def sync_job_descriptions(self) -> Tuple[Optional[str], int]:
+      try:
+         db = await self.get_database()
+         jobs = await db.jobs.find().to_list(None)
+         for job in jobs:
+            await asyncio.sleep(1)
+            job_id = job["shortcode"]
+            print(f"Syncing job description for job {job_id}")
+            job_details = await self.fetch_job_detail(job_id)
+            update_fields = {
+                "description": job_details.get("description"),
+                "full_description": job_details.get("full_description"),
+                "requirements": job_details.get("requirements"),
+                "benefits": job_details.get("benefits"),
+                "employment_type": job_details.get("employment_type"),
+                "industry": job_details.get("industry"),
+                "experience": job_details.get("experience")
+            }
+            await db.jobs.update_one(
+                {"shortcode": job_id},
+                {"$set": update_fields}
+            )
+         return None, 200
+      except RequestException as e:
+         error_msg = f"Error syncing job descriptions: {str(e)}"
+         print(error_msg)
+         raise e
