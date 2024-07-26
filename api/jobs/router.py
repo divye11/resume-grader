@@ -16,7 +16,6 @@ async def get_jobs(service: JobService = Depends(get_job_service)):
 
 @router.get("/sync")
 async def sync_jobs(service: JobService = Depends(get_job_service)):
-    print("sync_jobs called")  # Debugging line
     error_msg, status_code = await service.sync_jobs()
     if error_msg:
         raise HTTPException(status_code=status_code, detail=error_msg)

@@ -1,3 +1,4 @@
+import asyncio
 from jobs.schemas import JobsList, JobDetail, CandidatesList, Job
 import os
 import requests
@@ -6,7 +7,6 @@ from typing import Tuple, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from api.main import app
 from pymongo import UpdateOne
-
 class JobService:
    def __init__(self) -> None:
       self.api_key = os.getenv('WORKABLE_API_KEY')
@@ -59,36 +59,61 @@ class JobService:
          print(error_msg)
          return None, 500, error_msg
    
+   async def store_jobs(self, jobs: list[Job]) -> Tuple[int, int, int]:
+      try: 
+         db = await self.get_database()
+         # Prepare bulk operations
+         operations = [
+            UpdateOne(
+               {"id": job["id"]},
+               {"$setOnInsert": job},
+               upsert=True
+            ) for job in jobs
+         ]
+         
+         # Perform bulk write
+         result = await db.jobs.bulk_write(operations)
+
+         return result.matched_count, result.modified_count, result.upserted_count
+      except Exception as e:
+         error_msg = f"Error storing jobs: {str(e)}"
+         print(error_msg)
+         raise e
+
+   async def fetch_jobs(self, url: str) -> Tuple[list[Job], Optional[str]]:
+      try:
+         response = self.session.get(url)
+         response.raise_for_status()
+         data = response.json()
+         jobs = data.get('jobs', [])
+         paging = data.get('paging', {})
+         print(f"data is {data}")
+         return jobs, paging.get('next')
+      except RequestException as e:
+         error_msg = f"Error fetching jobs: {str(e)}"
+         print(error_msg)
+         raise e
+
    async def sync_jobs(self) -> Tuple[Optional[str], int]:
-        url = f"{self.api_url}/jobs"
+        url = f"{self.api_url}/jobs?state=published"
         try:
-            response = self.session.get(url)
-            response.raise_for_status()
-            jobs: list[Job] = response.json()['jobs']
-            
-            if jobs:
-                db = await self.get_database()
-                
-                # Prepare bulk operations
-                operations = [
-                    UpdateOne(
-                        {"id": job["id"]},
-                        {"$setOnInsert": job},
-                        upsert=True
-                    ) for job in jobs
-                ]
-                
-                # Perform bulk write
-                result = await db.jobs.bulk_write(operations)
-                
-                print(f"Matched: {result.matched_count}, "
-                      f"Modified: {result.modified_count}, "
-                      f"Upserted: {result.upserted_count}")
-                
-                return result, 200
-            else:
-                return "No jobs found", 404
-                
+            db = await self.get_database()
+            latest_job_in_db = await db.jobs.find_one({}, sort=[("created_at", -1)])
+            print("latest job is", latest_job_in_db)
+            if latest_job_in_db:
+               last_job_added = [latest_job_in_db]
+               since_id = last_job_added[0]["id"]
+               url += f"&since_id={since_id}"
+            print(f"url is {url}")
+            while url:
+               await asyncio.sleep(1)
+               jobs, next_url = await self.fetch_jobs(url)
+               print(f"next url {next_url}")
+               matched, modified, upserted = await self.store_jobs(jobs)
+               print(f"Matched: {matched}, modified: {modified}, upserted: {upserted}")
+               url = next_url
+                         
+            return f"Matched: {matched}, modified: {modified}, upserted: {upserted}", 200                
         except RequestException as e:
             error_msg = f"Error syncing jobs: {str(e)}"
             print(error_msg)
