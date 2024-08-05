@@ -29,8 +29,10 @@ app.state.db = db
 
 from jobs.router import router as JobRoutes
 from candidates.router import router as CandidateRoutes
+from grading.router import router as GradingRoutes
 app.include_router(JobRoutes)
 app.include_router(CandidateRoutes)
+app.include_router(GradingRoutes)
 
 @app.get("/")
 def hello_world():

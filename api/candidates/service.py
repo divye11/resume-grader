@@ -119,3 +119,47 @@ class CandidateSerice:
             error_msg = f"Error fetching jobs: {str(e)}"
             print(error_msg)
             return error_msg, 500
+        
+    async def fetch_candidate_details(self, id: str) -> list[Candidate]:
+        try:
+            response = self.session.get(f"{self.api_url}/candidates/{id}")
+            response.raise_for_status()
+            data = response.json()
+            return data
+        except Exception as e:
+            error_msg = f"Error fetching candidates: {str(e)}"
+            print(error_msg)
+            return None
+
+    async def sync_candidate_details(self) -> Tuple[Optional[str], int]:
+        try:
+            db = await self.get_database()
+            # candidates = await db.candidates.find({"$and": [{"resume_url": {"$exists": False}}, {"experience_entries": {"$exists": False}}, { "missingData": { "$exists": False }}]}).to_list(None)
+            candidates = await db.candidates.find({"job.shortcode": '39E3085AE8'}).to_list(None)
+            print(f"Found {len(candidates)} candidates without details")
+            for candidate in candidates:
+                await asyncio.sleep(1)
+                candidate_id = candidate.get('id')
+                data = await self.fetch_candidate_details(candidate_id)
+                if not data:
+                    print(f"Data not found for candidate {candidate_id}")
+                    db.candidates.update_one({"id": candidate_id}, {"$set": {"missingData": True}})
+                    continue
+                candidate_data = data.get('candidate')
+                print(f"adding details for candidate {candidate_id}, {candidate_data.get('resume_url')}")
+                update = {
+                    "$set": {
+                        "resume_url": candidate_data.get('resume_url'),
+                        "summary": candidate_data.get('summary'),
+                        "education_entries": candidate_data.get('education_entries'),
+                        "experience_entries": candidate_data.get('experience_entries'),
+                        "skills": candidate_data.get('skills'),
+                        "location": candidate_data.get('location')
+                    }
+                }
+                await db.candidates.update_one({"id": candidate_id}, update)
+            return None, 200
+        except Exception as e:
+            error_msg = f"Error syncing candidate details: {str(e)}"
+            print(error_msg)
+            return error_msg, 500

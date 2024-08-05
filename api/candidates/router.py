@@ -22,3 +22,10 @@ async def sync_candidates(service: CandidateSerice = Depends(get_candidates_serv
     if error_msg:
         raise HTTPException(status_code=status_code, detail=error_msg)
     return {"message": "Candidates synced successfully"}
+
+@router.get("/sync/details")    
+async def sync_candidate_details(service: CandidateSerice = Depends(get_candidates_service)):
+    error_msg, status_code = await service.sync_candidate_details()
+    if error_msg:
+        raise HTTPException(status_code=status_code, detail=error_msg)
+    return {"message": "Candidate details synced successfully"}

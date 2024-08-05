@@ -7,6 +7,8 @@ from api.main import app
 from jobs.schemas import Job, JobDetail, JobsList, CandidatesList
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import UpdateOne
+from bs4 import BeautifulSoup 
+
 class JobService:
    def __init__(self) -> None:
       self.api_key = os.getenv('WORKABLE_API_KEY')
@@ -21,40 +23,34 @@ class JobService:
       return app.state.db
 
    async def get_jobs(self) -> Tuple[Optional[JobsList], int, Optional[str]]:
-      url = f"{self.api_url}/jobs"
       try:
-         response = self.session.get(url)
-         response.raise_for_status()
-         return response.json(), 200, None
+         db = await self.get_database()
+         jobs = await db.jobs.find().to_list(None)
+         return JobsList(jobs=jobs), 200, None
       except RequestException as e:
          error_msg = f"Error fetching jobs: {str(e)}"
          print(error_msg)
          return None, 500, error_msg
    
    async def get_job_detail(self, job_id) -> Tuple[Optional[JobDetail], int, Optional[str]]:
-      url = f"{self.api_url}/jobs/{job_id}"
       try:
-         response = self.session.get(url)
-         response.raise_for_status()
-         return response.json(), 200, None
+         db = await self.get_database()
+         job_detail = db.jobs.find_one({"shortcode": job_id})
+         if job_detail is None:
+            return None, 404, f"Job with id {job_id} not found"
+         return job_detail, 200, None
       except RequestException as e:
-         if isinstance(e, requests.HTTPError) and e.response.status_code == 404:
-            error_msg = f"Job with id {job_id} not found"
-         else:
-            error_msg = f"Error fetching job detail for job_id {job_id}: {str(e)}"
+         error_msg = f"Error fetching job detail for job_id {job_id}: {str(e)}"
          print(error_msg)
-         status_code = e.response.status_code if isinstance(e, requests.HTTPError) else 500
+         status_code = 500
          return None, status_code, error_msg
       
    async def get_candidates_for_job(self, job_id, stage=None) -> Tuple[Optional[CandidatesList], int, Optional[str]]:
-      url = f"{self.api_url}/candidates?job_id={job_id}"
-      if stage:
-         url += f"&stage={stage}"
       try:
-         response = self.session.get(url)
-         response.raise_for_status()
-         return response.json(), 200, None
-      except RequestException as e:
+         db = await self.get_database()
+         candidates = await db.candidates.find({"shortcode": job_id, "stage": stage}).to_list(None)
+         return CandidatesList(candidates=candidates), 200, None
+      except Exception as e:
          error_msg = f"Error fetching candidates for job_id {job_id}{' and stage ' + stage if stage else ''}: {str(e)}"
          print(error_msg)
          return None, 500, error_msg
@@ -141,11 +137,12 @@ class JobService:
          for job in jobs:
             await asyncio.sleep(1)
             job_id = job["shortcode"]
-            print(f"Syncing job description for job {job_id}")
             job_details = await self.fetch_job_detail(job_id)
+            parsed_description = BeautifulSoup(job_details.get("description"), "lxml").get_text()
+            parsed_full_description = BeautifulSoup(job_details.get("full_description"), "lxml").get_text()
             update_fields = {
-                "description": job_details.get("description"),
-                "full_description": job_details.get("full_description"),
+                "description": parsed_description,
+                "full_description": parsed_full_description,
                 "requirements": job_details.get("requirements"),
                 "benefits": job_details.get("benefits"),
                 "employment_type": job_details.get("employment_type"),
@@ -159,5 +156,23 @@ class JobService:
          return None, 200
       except RequestException as e:
          error_msg = f"Error syncing job descriptions: {str(e)}"
+         print(error_msg)
+         raise e
+      
+   async def sync_job(self, shortcode) -> Tuple[Optional[str], int]:
+      url = f"{self.api_url}/jobs/{shortcode}"
+      try:
+         response = self.session.get(url)
+         response.raise_for_status()
+         job = response.json()
+         db = await self.get_database()
+         await db.jobs.update_one(
+            {"shortcode": shortcode},
+            {"$set": job},
+            upsert=True
+         )
+         return None, 200
+      except RequestException as e:
+         error_msg = f"Error syncing job {shortcode}: {str(e)}"
          print(error_msg)
          raise e
