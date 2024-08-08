@@ -25,15 +25,15 @@ class GradingService:
     async def sync_resumes(self) -> Tuple[Optional[str], Optional[int]]:
         try:
             db = await self.get_database()
-            jobs = await db.jobs.find({"shortcode": "39E3085AE8"}).to_list(None)
+            jobs = await db.jobs.find({"shortcode": "C2A884697D"}).to_list(None)
             if jobs:
                 for job in jobs:
-                    candidates = await db.candidates.find({"job.shortcode": job.get('shortcode')}).skip(2).limit(1).to_list(None)
+                    candidates = await db.candidates.find({"job.shortcode": job.get('shortcode')}).to_list(None)
+                    print(f"Found {len(candidates)} candidates for job {job.get('title')}")
                     for candidate in candidates:
                         # Grade the resume
                         result =  await self.grade_resume(candidate, job)
                         print(f"Result summary: {result.get('summary')}, grade: {result.get('grade')}")
-                        return None, 200
 
             return None, 200
         except Exception as e:
@@ -48,17 +48,19 @@ class GradingService:
             description, full_description, title, employment_type, experience = self.fetch_job_context(job)
             job_context = f"Job Title: {title}\nJob Description: {full_description}\nEmployment Type: {employment_type}\nExperience Required: {experience}\nJob Description: {description}"
             response = await self.grading_service.grade_resume(resume_content, job_context)
+            await self.store_candidate_data(resume_content, job, candidate, response)
+
             return response
         except Exception as e:
             error_msg = f"Error grading resume: {str(e)}"
             print(error_msg)
             return 500, error_msg    
-        
+                
     async def fetch_resume(self, candidate):
         try:
             resume_url = candidate.get('resume_url')
             if resume_url:
-                print(f"Fetching resume from {resume_url}")
+                print(f">>>>>>>Fetching resume from {resume_url}")
                 # Use the signed URL directly to fetch the resume
                 headers = {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
@@ -121,3 +123,20 @@ class GradingService:
             error_msg = f"Error fetching job context: {str(e)}"
             print(error_msg)
             return "", "", "", "", ""
+        
+    async def store_candidate_data(self, resume_content: str, job: Job, candidate: Candidate, result):
+        try:
+            print('storing candidate data')
+            db = await self.get_database()
+            await db.candidate_grades.insert_one({
+                "resume_content": resume_content,
+                "job_shortcode": job.get('shortcode'),
+                "candidate_id": candidate.get('id'),
+                "candidate_assessment": result.get('summary'),
+                "grade": result.get('grade')
+            })
+            return 200
+        except Exception as e:
+            error_msg = f"Error storing candidate data: {str(e)}"
+            print(error_msg)
+            return 500

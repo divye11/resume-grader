@@ -135,7 +135,7 @@ class CandidateSerice:
         try:
             db = await self.get_database()
             # candidates = await db.candidates.find({"$and": [{"resume_url": {"$exists": False}}, {"experience_entries": {"$exists": False}}, { "missingData": { "$exists": False }}]}).to_list(None)
-            candidates = await db.candidates.find({"job.shortcode": '39E3085AE8'}).to_list(None)
+            candidates = await db.candidates.find({"job.shortcode": 'C2A884697D'}).to_list(None)
             print(f"Found {len(candidates)} candidates without details")
             for candidate in candidates:
                 await asyncio.sleep(1)
